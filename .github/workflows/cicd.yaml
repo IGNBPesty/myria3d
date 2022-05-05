@@ -16,7 +16,7 @@ on:
       - main
 
 jobs:
-  lidar_on_docker:
+  CICD:
     runs-on: self-hosted
 
     steps:
