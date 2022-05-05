@@ -28,7 +28,7 @@ WORKDIR /lidar
 COPY . .
 
 # install the python packages via anaconda
-RUN conda env create -f bash/setup_environment/requirements.yml
+RUN conda env create -f setup_env/requirements.yml
 
 # Make RUN commands use the new environment:
 SHELL ["conda", "run", "-n", "lidar_multiclass", "/bin/bash", "-c"]
