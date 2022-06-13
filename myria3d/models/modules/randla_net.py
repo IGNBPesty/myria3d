@@ -1,6 +1,7 @@
 # Adapted from https://github.com/aRI0U/RandLA-Net-pytorch/blob/master/model.py
 
 import math
+from numbers import Number
 from typing import Tuple
 import torch
 import torch.nn as nn
@@ -171,17 +172,6 @@ class RandLANet(nn.Module):
             parts.append(nn.Dropout(p=dropout))
         parts.append(SharedMLP(32, num_classes))
         self.fc_end = nn.Sequential(*parts)
-
-    def random_sample(self, cloud):
-        num_nodes = cloud.shape[0]
-        choice = torch.cat(
-            [
-                torch.randperm(num_nodes)
-                for _ in range(math.ceil(self.num_fixed_points / num_nodes))
-            ],
-            dim=0,
-        )[: self.num_fixed_points]
-        return cloud[choice]
 
     def change_num_class_for_finetuning(self, new_num_classes: int):
         """Change end layer output number of classes if new_num_classes is different.
@@ -432,3 +422,16 @@ def knn_compact(
     x_idx = x_idx - x_idx.min(dim=1, keepdim=True)[0].min(dim=-1, keepdim=True)[0]
     y_idx = y_idx - y_idx.min(dim=1, keepdim=True)[0].min(dim=-1, keepdim=True)[0]
     return y_idx, x_idx
+
+
+def random_sample(cloud: torch.Tensor, num_fixed_points: Number):
+    """Randomly subsample the cloud (x||pos)."""
+    num_nodes = cloud.shape[0]
+    choice = torch.cat(
+        [
+            torch.randperm(num_nodes)
+            for _ in range(math.ceil(num_fixed_points / num_nodes))
+        ],
+        dim=0,
+    )[:num_fixed_points]
+    return cloud[choice]
