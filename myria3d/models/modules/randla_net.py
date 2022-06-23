@@ -141,8 +141,6 @@ class RandLANet(nn.Module):
             # In training mode and for validation, we directly optimize on subsampled points, for
             # 1) Speed of training - because interpolation multiplies a step duration by a 5-10 factor!
             # 2) data augmentation at the supervision level.
-            # 3) Validation metric that is invariant to small changes, therefore having an early stopping
-            # that should not lead to overfitting on small features
             return scores  # B*N, C
 
         # During evaluation on test data and inference, we interpolate predictions back to original positions
