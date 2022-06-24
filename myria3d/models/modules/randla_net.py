@@ -137,9 +137,9 @@ class RandLANet(nn.Module):
         scores = torch.cat(
             [score_cloud.permute(1, 0) for score_cloud in scores]
         )  # B*N, C
-        if self.training or "copies" not in batch:
-            # In training mode and for validation, we directly optimize on subsampled points, for
-            # 1) Speed of training - because interpolation multiplies a step duration by a 5-10 factor!
+        if self.training:
+            # For training, we directly optimize on subsampled points, for
+            # 1) Speed of training - because interpolation multiplies a step duration by a 10-15 factor!
             # 2) data augmentation at the supervision level.
             return scores  # B*N, C
 

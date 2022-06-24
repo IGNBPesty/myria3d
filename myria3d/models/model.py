@@ -103,8 +103,8 @@ class Model(LightningModule):
 
         """
         logits = self.forward(batch)
-        loss = self.criterion(logits, batch.y)
-        return loss, logits
+
+        return logits
 
     def on_fit_start(self) -> None:
         """On fit start: get the experiment for easier access."""
@@ -114,6 +114,9 @@ class Model(LightningModule):
         """Training step.
 
         Makes a model pass. Then, computes loss and predicted class of subsampled points to log loss and IoU.
+        For training, we directly optimize on subsampled points, for
+        1) Speed of training - because interpolation multiplies a step duration by a 10-15 factor!
+        2) data augmentation at the supervision level.
 
         Args:
             batch (torch_geometric.data.Batch): Batch of data including x (features), pos (xyz positions),
@@ -123,15 +126,18 @@ class Model(LightningModule):
         Returns:
             dict: a dict containing the loss, logits, and targets.
         """
-        loss, logits = self.step(batch)
+        logits = self.step(batch)
+        targets = batch.y
+
+        loss = self.criterion(logits, targets)
         self.log("train/loss", loss, on_step=True, on_epoch=True, prog_bar=False)
         with torch.no_grad():
             preds = torch.argmax(logits.detach(), dim=1)
-            self.train_iou(preds, batch.y)
-        self.log(
-            "train/iou", self.train_iou, on_step=True, on_epoch=True, prog_bar=True
-        )
-        return {"loss": loss, "logits": logits, "targets": batch.y}
+            self.train_iou(preds, targets)
+            self.log(
+                "train/iou", self.train_iou, on_step=True, on_epoch=True, prog_bar=True
+            )
+        return {"loss": loss, "logits": logits, "targets": targets}
 
     def validation_step(self, batch: Batch, batch_idx: int) -> dict:
         """Validation step.
@@ -147,13 +153,17 @@ class Model(LightningModule):
             dict: a dict containing the loss, logits, and targets.
 
         """
-        loss, logits = self.step(batch)
+        logits = self.step(batch)
+        targets = batch.copies["transformed_y_copy"]
+        loss = self.criterion(logits, targets)
         self.log("val/loss", loss, on_step=True, on_epoch=True)
         with torch.no_grad():
             preds = torch.argmax(logits.detach(), dim=1)
-            self.val_iou(preds, batch.y)
-        self.log("val/iou", self.val_iou, on_step=True, on_epoch=True, prog_bar=True)
-        return {"loss": loss, "logits": logits, "targets": batch.y}
+            self.val_iou(preds, targets)
+            self.log(
+                "val/iou", self.val_iou, on_step=True, on_epoch=True, prog_bar=True
+            )
+        return {"loss": loss, "logits": logits, "targets": targets}
 
     def on_validation_epoch_end(self) -> None:
         """At the end of a validation epoch, compute the IoU and track if it has improved
