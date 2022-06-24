@@ -17,6 +17,7 @@ import glob
 import os.path as osp
 from shutil import copyfile
 import shutil
+import pdal
 from tqdm import tqdm
 import laspy
 import numpy as np
@@ -210,21 +211,46 @@ class FrenchLidarDataSignature(LidarDataSignature):
             Data: the point cloud formatted for later deep learning training.
 
         """
-        las = laspy.read(las_filepath)
-
+        # las = laspy.read(las_filepath)
+        pipeline = pdal.Pipeline()
+        ops = [
+            pdal.Reader.las(filename=las_filepath),
+            # pdal.Filter.optimalneighborhood(min_k=16, max_k=64),
+            # pdal.Filter.chipper(capacity=10 * 10 * 30),
+            # pdal.Filter.normal(knn=32, always_up=True, refine=True),
+            pdal.Filter.covariancefeatures(
+                feature_set="Dimensionality",
+                knn=16,
+                threads=8,
+                stride=1,
+            ),
+        ]
+        for op in ops:
+            pipeline |= op
+        pipeline.execute()
+        las = pipeline.arrays[0]
         # Positions and base features
-        pos = np.asarray([las.x, las.y, las.z], dtype=np.float32).transpose()
+        pos = np.asarray([las["X"], las["Y"], las["Z"]], dtype=np.float32).transpose()
+
         x = np.asarray(
             [
                 las[x_name]
                 for x_name in [
-                    "intensity",
-                    "return_number",
-                    "number_of_returns",
-                    "red",
-                    "green",
-                    "blue",
-                    "nir",
+                    "Intensity",
+                    "ReturnNumber",
+                    "NumberOfReturns",
+                    "Red",
+                    "Green",
+                    "Blue",
+                    "Infrared",
+                    # "NormalX",
+                    # "NormalY",
+                    # "NormalZ",
+                    # "Curvature",
+                    "Linearity",
+                    "Planarity",
+                    "Scattering",
+                    "Verticality",
                 ]
             ],
             dtype=np.float32,
@@ -264,12 +290,7 @@ class FrenchLidarDataSignature(LidarDataSignature):
         ndvi = (nir - red) / (nir + red + 10**-6)
         x = np.concatenate([x, rgb_avg[:, None], ndvi[:, None]], axis=1)
 
-        try:
-            # for LAS format V1.2
-            y = las.classification.array.astype(int)
-        except Exception:
-            # for  LAS format V1.4
-            y = las.classification.astype(int)
+        y = las["Classification"].astype(int)
 
         return Data(
             pos=pos,

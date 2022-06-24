@@ -1,7 +1,7 @@
 # @package _global_
 defaults:
   - override /datamodule/dataset_description: 20220607_151_dalles_proto
-  - override /datamodule/transforms/preparations: train.yaml
+  - override /datamodule/transforms/preparations: default.yaml
   - override /datamodule/transforms/normalizations: default.yaml
   - override /datamodule/transforms/augmentations: heavy.yaml
 
