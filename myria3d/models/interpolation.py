@@ -65,10 +65,14 @@ class Interpolator:
         """
         # self.current_f = filepath
         pipeline = pdal.Reader.las(filename=src_las)
-        new_dims = self.probas_to_save + [
-            ChannelNames.PredictedClassification.value,
-            ChannelNames.ProbasEntropy.value,
-        ]
+        new_dims = (
+            self.probas_to_save
+            + [
+                ChannelNames.PredictedClassification.value,
+                ChannelNames.ProbasEntropy.value,
+            ]
+            + ["Group"]
+        )
         for new_dim in new_dims:
             pipeline |= pdal.Filter.ferry(
                 dimensions=f"=>{new_dim}"
@@ -124,11 +128,13 @@ class Interpolator:
         logits = self.reduce_predicted_logits(las)
 
         probas = torch.nn.Softmax(dim=1)(logits)
+        preds = torch.argmax(logits, dim=1)
         for idx, class_name in enumerate(self.classification_dict.values()):
             if class_name in self.probas_to_save:
                 las[class_name] = probas[:, idx]
+                if class_name == "vegetation":
+                    las["Group"] = 1 * (preds == idx)
 
-        preds = torch.argmax(logits, dim=1)
         preds = np.vectorize(self.reverse_mapper.get)(preds)
         las[ChannelNames.PredictedClassification.value] = preds
 
