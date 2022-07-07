@@ -146,7 +146,10 @@ class Interpolator:
         log.info(f"Updated LAS ({basename}) will be saved to \n {output_dir}\n")
         log.info("Saving...")
         pipeline = pdal.Writer.las(
-            filename=out_f, extra_dims="all", minor_version=4, dataformat_id=8
+            filename=out_f,
+            extra_dims="PredictedClassification=uint,entropy=float,vegetation=float,unclassified=float,Group=uint",
+            minor_version=4,
+            dataformat_id=8,
         ).pipeline(las)
         pipeline.execute()
         log.info("Saved.")
