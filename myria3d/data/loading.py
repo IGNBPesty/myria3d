@@ -51,6 +51,7 @@ def _find_file_in_dir(input_data_dir: str, basename: str) -> str:
     files = glob.glob(query, recursive=True)
     return files[0]
 
+
 class LidarDataLogic(ABC):
     """Abstract class to load, chunk, and save a point cloud dataset according to a train/val/test split.
     load_las and its needed parameters ares specified in child classes.
@@ -145,7 +146,9 @@ class LidarDataLogic(ABC):
         # )
         # CENTERING BRIDGE DATA !
         # Four times predictions on same area !
-        range_by_axis = [50]
+        range_by_axis = [40, 50, 60]
+        if "/val/" in output_subdir_path:
+            range_by_axis = [50]
 
         idx = 0
         for x_center in range_by_axis:
@@ -201,8 +204,6 @@ class LidarDataLogic(ABC):
         """
         subtile_save_path = osp.join(output_subdir_path, f"{str(idx).zfill(4)}.data")
         torch.save(subtile_data, subtile_save_path)
-
-
 
 
 class FrenchLidarDataLogic(LidarDataLogic):

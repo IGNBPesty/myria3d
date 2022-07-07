@@ -246,8 +246,8 @@ class LidarIterableDataset(IterableDataset):
             data = self.loading_function(filepath)
             kd_tree = cKDTree(data.pos[:, :2] - data.pos[:, :2].min(axis=0))
 
-            range_by_axis = [50, 50, 50, 50]
-            
+            range_by_axis = [40, 50, 60]
+
             # np.arange(
             #     self.subtile_width_meters / 2,
             #     self.input_tile_width_meters - self.subtile_width_meters / 2 + 1,
