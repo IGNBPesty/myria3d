@@ -1,4 +1,8 @@
-FROM nvidia/cuda:10.2-devel-ubuntu18.04
+#####################################################
+# Build 
+#####################################################
+
+FROM nvidia/cuda:10.2-devel-ubuntu18.04 AS build
 # An nvidia image seems to be necessary for torch-points-kernel. 
 # Also, a "devel" image seems required for the same library
 
@@ -42,18 +46,54 @@ RUN conda install -y mamba -n base -c conda-forge
 # Build the environment
 RUN mamba env create -f requirements.yml
 
+# On installe conda-pack
+RUN mamba install -c conda-forge conda-pack
+
+# On utilise conda-pack pour créer un environement "standalone" dans /venv
+RUN conda-pack -n myria3d -o /tmp/env.tar && \
+  mkdir /venv && cd /venv && tar xf /tmp/env.tar && \
+  rm /tmp/env.tar
+  
+# Cleanup prefixes from in the active environment
+RUN /venv/bin/conda-unpack
+
+
+#####################################################
+# Runtime 
+#####################################################
+FROM nvidia/cuda:10.2-devel-ubuntu18.04 AS runtime
+
+
+# set the IGN proxy, otherwise apt-get and other applications don't work
+# Should be commented out outside of IGN
+ENV http_proxy 'http://192.168.4.9:3128/'
+ENV https_proxy 'http://192.168.4.9:3128/'
+
+# set the timezone, otherwise it asks for it... and freezes
+ENV TZ=Europe/Paris
+RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
+
+# all the apt-get installs
+RUN apt-get update && apt-get upgrade -y && apt-get install -y \
+        software-properties-common  \
+        libgl1-mesa-glx libegl1-mesa libxrandr2 libxrandr2 libxss1 libxcursor1 libxcomposite1 libasound2 libxi6 libxtst6   # package needed for anaconda
+
+# Copy Python env
+COPY  --from=build /venv /venv
+
 # Copy the repository content in /myria3d 
 WORKDIR /myria3d
 COPY . .
 
+source /venv/bin/activate
+
 # Make RUN commands use the new environment:
-SHELL ["conda", "run", "-n", "myria3d", "/bin/bash", "-c"]
+SHELL ["source", "/venv/bin/activate", "&&", "/bin/bash", "-c"]
 
 # the entrypoint garanty that all command will be runned in the conda environment
-ENTRYPOINT ["conda",  \   
-        "run", \
-        "-n", \
-        "myria3d"]
+ENTRYPOINT ["source",  \   
+        "/venv/bin/activate", \
+        , "&&"]
 
 # Example usage
 CMD         ["python", \
