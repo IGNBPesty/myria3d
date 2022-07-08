@@ -1,56 +1,61 @@
-#####################################################
-# Build 
-#####################################################
+#
+# Ce dockerfile est destiné à être utilisé avec l'intégration continue
+# Il créé l'image à partir du répertoire de travail de Jenkins
+#
 
-FROM nvidia/cuda:10.2-devel-ubuntu18.04 AS build
-# An nvidia image seems to be necessary for torch-points-kernel. 
-# Also, a "devel" image seems required for the same library
+# Image pour le build de l'environnement
+# Base nvidia/cuda:11.0-base
+FROM nvidia/cuda:11.4.0-base-ubuntu20.04 AS build
 
-# set the IGN proxy, otherwise apt-get and other applications don't work
-# Should be commented out outside of IGN
-ENV http_proxy 'http://192.168.4.9:3128/'
-ENV https_proxy 'http://192.168.4.9:3128/'
+# On configure bash comme étant le shell 
+SHELL [ "/bin/bash", "--login", "-c" ]
 
-# set the timezone, otherwise it asks for it... and freezes
+# On bloque le mode interactif pour pas qu'on nous demande la timezone lors de l'installation
+ENV DEBIAN_FRONTEND=noninteractive
+
+# On installe les paquets nécessaires
+RUN apt-get update -yq \
+&& apt-get install curl -yq \
+&& apt-get install git -yq \
+&& apt-get install wget -yq \
+&& apt-get install tzdata -yq \
+&& apt-get install build-essential gdal-bin libgdal-dev -yq \
+&& apt-get clean -y
+
+# On configure la timezone
 ENV TZ=Europe/Paris
 RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 
-# Needed to use apt-get afterwards due to CUDA changes described here since April 27, 2022:
-# https://forums.developer.nvidia.com/t/notice-cuda-linux-repository-key-rotation/212772
-# Not the recommpended method, but else we need wget installed afterwards.
-# We changed to 10.2-devel-ubuntu18.04 so that might not be needed. 
-RUN apt-get update && apt-get upgrade -y && apt-get install -y wget
-RUN apt-key del 7fa2af80
-RUN apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/repos/ubuntu1804/x86_64/3bf863cc.pub
+# On installe Conda
+WORKDIR /var/data/conda/
+RUN wget https://repo.anaconda.com/miniconda/Miniconda3-py38_4.12.0-Linux-x86_64.sh -O /tmp/install-miniconda.sh
+RUN chmod 775 /tmp/install-miniconda.sh
+RUN /tmp/install-miniconda.sh -b -u -p /var/data/conda
+RUN echo 'export PATH=/var/data/conda/bin:$PATH' >> /etc/profile
+RUN echo 'export PATH=/var/data/conda/bin:$PATH' >> /etc/bashrc
+RUN chmod u+x /var/data/conda/bin
 
-# all the apt-get installs
-RUN apt-get update && apt-get upgrade -y && apt-get install -y \
-        software-properties-common  \
-        wget                        \
-        git                         \
-        libgl1-mesa-glx libegl1-mesa libxrandr2 libxrandr2 libxss1 libxcursor1 libxcomposite1 libasound2 libxi6 libxtst6   # package needed for anaconda
+# On installe le code OCSGE
+WORKDIR /var/data/ocsge/
+COPY . /var/data/ocsge/
 
-RUN wget --quiet https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O ~/miniconda.sh \
-        && /bin/bash ~/miniconda.sh -b -p /opt/conda \
-        && rm ~/miniconda.sh
+# On installe Mamba
+RUN /var/data/conda/bin/conda install mamba -c conda-forge
 
-ENV PATH /opt/conda/bin:$PATH
+# On télécharge les librairies python dans l'environnement Conda
+RUN /var/data/conda/bin/mamba env create --file=environment.yml
 
-# Only copy necessary files to set up the environment, 
-# to use docker caching if requirements files were not updated.
-WORKDIR /setup_env
-COPY ./setup_env/ .
+# On fait en sorte que les commandes RUN soient dans l'environnement conda ocsge
+SHELL ["/var/data/conda/bin/mamba", "run", "-n", "ocsge", "/bin/bash", "-c"]
 
-# install mamba to setup the env faster
-RUN conda install -y mamba -n base -c conda-forge
-# Build the environment
-RUN mamba env create -f requirements.yml
+# On package le code, génère commandes exécutables avec nos scripts Python
+RUN pip install .
 
 # On installe conda-pack
 RUN mamba install -c conda-forge conda-pack
 
 # On utilise conda-pack pour créer un environement "standalone" dans /venv
-RUN conda-pack -n myria3d -o /tmp/env.tar && \
+RUN conda-pack -n ocsge -o /tmp/env.tar && \
   mkdir /venv && cd /venv && tar xf /tmp/env.tar && \
   rm /tmp/env.tar
   
@@ -58,54 +63,59 @@ RUN conda-pack -n myria3d -o /tmp/env.tar && \
 RUN /venv/bin/conda-unpack
 
 
-#####################################################
-# Runtime 
-#####################################################
-FROM nvidia/cuda:10.2-devel-ubuntu18.04 AS runtime
 
 
-# set the IGN proxy, otherwise apt-get and other applications don't work
-# Should be commented out outside of IGN
-ENV http_proxy 'http://192.168.4.9:3128/'
-ENV https_proxy 'http://192.168.4.9:3128/'
 
-# set the timezone, otherwise it asks for it... and freezes
+
+# Image pour l'executable
+# On repart d'une image Linux neuve
+FROM nvidia/cuda:11.4.0-base-ubuntu20.04 AS run
+
+# Paramètre de build, le compte utilisateur (à la place de root), si pas de build-arg n'est passé ce sera 'svc_ocsge' par défaut 
+ARG DOCKER_USER=svc_ocsge
+# UID correspondant
+ARG DOCKER_USER_UID=101  
+ARG DOCKER_USER_GID=102  
+
+# On bloque le mode interactif pour pas qu'on nous demande la timezone lors de l'installation
+ENV DEBIAN_FRONTEND=noninteractive
+
+# On installe les paquets nécessaires
+RUN apt-get update -yq \
+&& apt-get install tzdata -yq \
+&& apt-get install gdal-bin -yq \
+&& apt-get clean -y
+
+# On configure la timezone
 ENV TZ=Europe/Paris
 RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 
-# all the apt-get installs
-RUN apt-get update && apt-get upgrade -y && apt-get install -y \
-        software-properties-common  \
-        libgl1-mesa-glx libegl1-mesa libxrandr2 libxrandr2 libxss1 libxcursor1 libxcomposite1 libasound2 libxi6 libxtst6   # package needed for anaconda
+# On créé dans l'image le groupe et le user
+RUN adduser --system --group $DOCKER_USER
+# Et on lui donne l'UID qui va bien pour que ça corresponde
+RUN usermod -u $DOCKER_USER_UID $DOCKER_USER
+RUN groupmod -g $DOCKER_USER_GID $DOCKER_USER
 
-# Copy Python env
-COPY  --from=build /venv /venv
+# Et on recopie l'environnement Python du build
+COPY --chown=$DOCKER_USER:$DOCKER_USER  --from=build /venv /venv
 
-# Copy the repository content in /myria3d 
-WORKDIR /myria3d
-COPY . .
+# On installe le code OCSGE
+WORKDIR /var/data/ocsge/
+COPY --chown=$DOCKER_USER:$DOCKER_USER --from=build /var/data/ocsge/ /var/data/ocsge/
 
-# Make RUN commands use the new environment:
-SHELL ["source", "/venv/bin/activate", "&&", "/bin/bash", "-c"]
 
-# the entrypoint garanty that all command will be runned in the conda environment
-ENTRYPOINT ["source",  \   
-        "/venv/bin/activate", \
-        , "&&"]
+# On copie un script shell de démarrage dans l'image
+COPY --chown=$DOCKER_USER:$DOCKER_USER entrypoint.sh /usr/local/bin/
+RUN chmod u+x /usr/local/bin/entrypoint.sh
 
-# Example usage
-CMD         ["python", \
-        "-m", \
-        "myria3d.predict", \
-        "--config-path", \
-        "/CICD_github_assets/parametres_etape1/.hydra", \ 
-        "--config-name", \
-        "predict_config_V1.6.3.yaml", \
-        "predict.src_las=/CICD_github_assets/parametres_etape1/test/792000_6272000_subset_buildings.las", \
-        "predict.output_dir=/CICD_github_assets/output_etape1", \
-        "predict.ckpt_path=/CICD_github_assets/parametres_etape1/checkpoints/epoch_033.ckpt", \
-        "predict.gpus=0", \
-        "datamodule.batch_size=10", \ 
-        "datamodule.subtile_overlap=0", \ 
-        "hydra.run.dir=/myria3d"]
+# On dit à Docker d'utiliser cet utilisateur pour toutes les commandes suivantes
+USER $DOCKER_USER
 
+# On défini bash comme shell par défaut
+SHELL ["/bin/bash", "-c"]
+
+# Le script à lancer comme point d'entrée
+ENTRYPOINT [ "/usr/local/bin/entrypoint.sh" ]
+
+# La commande de départ
+CMD bash
