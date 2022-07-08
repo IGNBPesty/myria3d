@@ -85,8 +85,6 @@ COPY  --from=build /venv /venv
 WORKDIR /myria3d
 COPY . .
 
-source /venv/bin/activate
-
 # Make RUN commands use the new environment:
 SHELL ["source", "/venv/bin/activate", "&&", "/bin/bash", "-c"]
 
