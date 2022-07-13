@@ -19,7 +19,7 @@ RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 # https://forums.developer.nvidia.com/t/notice-cuda-linux-repository-key-rotation/212772
 # Not the recommpended method, but else we need wget installed afterwards.
 # We changed to 10.2-devel-ubuntu18.04 so that might not be needed. 
-RUN apt-get update && apt-get upgrade -y && apt-get install -y wget
+RUN apt-get update && apt-get install -y wget && apt-get clean -y
 RUN apt-key del 7fa2af80
 RUN apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/repos/ubuntu1804/x86_64/3bf863cc.pub
 
@@ -75,7 +75,7 @@ ENV TZ=Europe/Paris
 RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 
 # all the apt-get installs
-RUN apt-get update && apt-get upgrade -y && apt-get install -y \
+RUN apt-get update -y && apt-get install -y \
         software-properties-common  \
         libgl1-mesa-glx libegl1-mesa libxrandr2 libxrandr2 libxss1 libxcursor1 libxcomposite1 libasound2 libxi6 libxtst6  \
         && apt-get clean -y
