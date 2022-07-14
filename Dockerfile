@@ -62,7 +62,8 @@ RUN /venv/bin/conda-unpack
 #####################################################
 # Runtime 
 #####################################################
-FROM nvidia/cuda:10.2-devel-ubuntu18.04 AS runtime
+# FROM nvidia/cuda:10.2-devel-ubuntu18.04 AS runtime
+FROM nvidia/cuda:10.2-runtime-ubuntu18.04 AS runtime
 
 
 # set the IGN proxy, otherwise apt-get and other applications don't work
