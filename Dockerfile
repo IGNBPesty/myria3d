@@ -79,7 +79,7 @@ RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 RUN apt-get update -y && apt-get install -y \
         software-properties-common  \
         libgl1-mesa-glx libegl1-mesa libxrandr2 libxrandr2 libxss1 libxcursor1 libxcomposite1 libasound2 libxi6 libxtst6  \
-        && apt-get clean -y
+        && apt-get clean -y && rm -rf /var/lib/apt/lists/*
 
 # Copy Python env
 COPY  --from=build /venv /venv
