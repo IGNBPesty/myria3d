@@ -15,9 +15,10 @@ dependencies:
   - laspy
   - python-pdal  # useful for data preparation
   # --------- deep learning --------- #
-  - pytorch==1.10.1+cpu
+  - pytorch==1.10.1
+  - torchvision==0.11.2
+  - cpuonly
   - pyg==2.0.3
-  - torchvision==0.11.2+cpu
   - cudatoolkit=11.3  # single equal sign there, not a typo
   - pytorch-lightning==1.5.9
   - torchmetrics==0.7.*  # Else, pytorch-lightning will install the latest
